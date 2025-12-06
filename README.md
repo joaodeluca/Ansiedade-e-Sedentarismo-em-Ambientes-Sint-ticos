@@ -52,12 +52,7 @@ Este é o **script central do projeto**. Ele concentra toda a lógica de calibra
 
 #### 2) Extrai as variáveis reais por participante
 Para cada `user_*` válido:
-- Lê `Actigraph.csv` e calcula o sedentarismo objetivo:
-
-\[
-sed\_ratio = \frac{\text{tempo sentado + tempo deitado}}{\text{tempo total monitorado}}
-\]
-
+- Lê `Actigraph.csv` e calcula o sedentarismo objetivo
 - Lê `questionnaire.csv` e extrai o **STAI-S real**.
 - Mantém somente participantes com **sed_ratio e STAI-S presentes**.
 
@@ -68,9 +63,6 @@ Com os participantes válidos, estima:
 - **r de Pearson(sed_ratio, STAI-S)**  
 - **regressão linear** para preservar a dependência sedentarismo → ansiedade:
 
-\[
-STAI\_S = \alpha + \beta \cdot sed\_ratio
-\]
 
 Esses parâmetros são salvos em `mmash_stats.json` e controlam toda a simulação posterior.
 
@@ -78,18 +70,12 @@ Esses parâmetros são salvos em `mmash_stats.json` e controlam toda a simulaç�
 Para cada persona:
 - amostra sedentarismo sintético realista:
 
-\[
-sed\_ratio^{(sint)} \sim \mathcal{N}(\mu_{sed}, \sigma_{sed})
-\]
-
 - classifica lifestyle (ativo, moderado, muito ativo, sedentário) a partir de faixas de sed_ratio.
 
 #### 5) Gera o STAI alvo sintético
 Com o sed_ratio sintético, calcula o STAI alvo:
 
-\[
-STAI_{alvo} = \alpha + \beta \cdot sed\_ratio^{(sint)} + \varepsilon
-\]
+STAI alvo = α + β·sed_ratio + ε
 
 onde:
 - **α** = ansiedade base esperada  
