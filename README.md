@@ -1,191 +1,188 @@
-# Ansiedade-e-Sedentarismo-em-Ambientes-Sintéticos
-Ansiedade e Sedentarismo em Ambientes Sintéticos: Um Estudo Experimental com Personas Geradas por LLMs
-Este repositório contém o pipeline completo usado no TCC para gerar personas sintéticas, aplicar um estressor controlado e coletar respostas ao STAI-S (State-Trait Anxiety Inventory – State / forma Y-1), com calibração empírica a partir do dataset MMASH.
+# Ansiedade e Sedentarismo em Ambientes Sintéticos — Pipeline MMASH (TCC)
 
-A lógica central do projeto é:
+Este repositório contém o pipeline completo usado no TCC para **gerar personas sintéticas**, aplicar um **cenário estressor controlado** e coletar respostas ao **STAI-S (ansiedade de estado)**, com calibração empírica baseada no dataset **MMASH**.  
+O MMASH **não é usado para treinar nenhum modelo** — ele entra apenas para **calibrar faixas e relações estatísticas reais** entre sedentarismo e ansiedade antes da geração sintética.
 
-1.Calibrar sedentarismo e ansiedade usando humanos reais do MMASH (actigrafia + STAI-S real).
+A lógica do trabalho é:
 
-2.Gerar sedentarismo sintético (sed_ratio) seguindo a distribuição real observada no MMASH.
+1. **Calibrar** sedentarismo e STAI-S com participantes reais do MMASH.  
+2. **Gerar sed_ratio sintético** seguindo a distribuição humana do MMASH.  
+3. **Gerar um STAI alvo sintético** coerente com o sed_ratio, preservando a dependência observada em humanos.  
+4. **Enviar sed_ratio + STAI alvo + cenário estressor + questionário STAI-S** para a LLM.  
+5. Receber **somente JSON** com os 20 itens do STAI-S (1–4).  
+6. Validar, salvar e analisar estatisticamente.
 
-3.Gerar um STAI alvo sintético coerente com o sedentarismo, preservando a relação sedentarismo → ansiedade observada nos dados reais.
+---
 
-4.Passar sed_ratio + STAI alvo + cenário estressor para o LLM.
+## Estrutura do repositório
 
-5.Receber como saída um JSON contendo os 20 itens do STAI-S (escala 1–4).
-
-6.Calcular STAI total, validar consistência psicométrica e analisar estatisticamente os resultados.
-
-
-
-1. DataPaper/ (Dataset MMASH)
-
-Pasta do MMASH utilizada na calibração.
-A estrutura é:
-
-DataPaper/
-  user_1/
-    Actigraph.csv
-    questionnaire.csv
-    RR.csv
-    sleep.csv
-    ...
-  user_2/
-    ...
-    
-Cada user_* representa um participante humano monitorado por 24h.
-
-O pipeline usa apenas:
-Actigraph.csv → sedentarismo objetivo
-questionnaire.csv → STAI-S real (ansiedade de estado)
-Os demais arquivos (RR, sleep, saliva etc.) podem existir na base, mas não são obrigatórios para a calibração central do TCC.
+├── DataPaper/
+├── analise_json/
+├── saida_sintetico_one_situation/
+├── analise_json_stai_mmash.ipynb
+├── mmash_generate_one_situation_fast.py
+└── prompts.py
 
 
-3. mmash_generate_one_situation_fast.py (Pipeline principal)
 
-Este é o script central do projeto.
-Ele executa tudo de ponta a ponta, desde a calibração até salvar as respostas sintéticas.
+---
 
-3.1. O que o script faz passo a passo
-(1) Localiza o MMASH
+## `prompts.py` — Itens do STAI-S
 
-Descompacta ZIP do dataset (se necessário).
+> **Importante:** este arquivo **só contém os 20 itens do STAI-S**, nada além disso.
 
-Encontra a pasta DataPaper/.
+Ele funciona como “molde” do questionário:  
+- lista textual dos itens `stai_1` até `stai_20`  
+- usados pelo script principal para montar o prompt final  
+- a LLM responde esses itens em escala Likert **1 a 4**
 
-(2) Varre participantes reais
+Ou seja, o modelo **não inventa perguntas**: ele apenas preenche os itens oficiais do STAI-S.
 
-Para cada user_*:
+---
 
-Lê Actigraph.csv
+## `mmash_generate_one_situation_fast.py` — Pipeline completo (calibração + geração + coleta)
 
-Calcula sedentarismo real:
+Este é o **script central do projeto**. Ele concentra toda a lógica de calibração, geração de personas, construção do prompt, chamada à LLM e armazenamento dos resultados.
 
-Lê questionnaire.csv
+### O que o script faz (passo a passo)
 
-Extrai STAI-S real.
+#### 1) Localiza e lê o MMASH
+- Procura a pasta `DataPaper/` (descompactando ZIP se necessário).
+- Identifica as pastas `user_*` (cada uma é um participante real).
 
-Mantém apenas participantes com sed_ratio e STAI-S presentes.
+#### 2) Extrai as variáveis reais por participante
+Para cada `user_*` válido:
+- Lê `Actigraph.csv` e calcula o sedentarismo objetivo:
 
-(3) Calibra parâmetros do MMASH
+\[
+sed\_ratio = \frac{\text{tempo sentado + tempo deitado}}{\text{tempo total monitorado}}
+\]
 
-Com os participantes válidos o script calcula:
+- Lê `questionnaire.csv` e extrai o **STAI-S real**.
+- Mantém somente participantes com **sed_ratio e STAI-S presentes**.
 
-μ_sed, σ_sed → distribuição real de sedentarismo
+#### 3) Calibra os parâmetros empíricos
+Com os participantes válidos, estima:
+- **μ_sed, σ_sed** → distribuição humana de sedentarismo  
+- **μ_stai, σ_stai** → distribuição humana de STAI-S  
+- **r de Pearson(sed_ratio, STAI-S)**  
+- **regressão linear** para preservar a dependência sedentarismo → ansiedade:
 
-μ_stai, σ_stai → distribuição real de STAI-S
+\[
+STAI\_S = \alpha + \beta \cdot sed\_ratio
+\]
 
-r de Pearson(sed_ratio, STAI-S)
+Esses parâmetros são salvos em `mmash_stats.json` e controlam toda a simulação posterior.
 
-regressão linear STAI ~ sed_ratio (α, β):
-STAI=α+β⋅sed_ratio
-
-Esses parâmetros são salvos posteriormente em JSON para controlar a simulação.
-
-(4) Geração de personas sintéticas
-
+#### 4) Gera personas sintéticas (sedentarismo)
 Para cada persona:
-Atribui lifestyle (ativo, moderado, muito ativo, sedentário) conforme faixas de sed_ratio.
+- amostra sedentarismo sintético realista:
 
-(5) Geração do STAI alvo sintético
+\[
+sed\_ratio^{(sint)} \sim \mathcal{N}(\mu_{sed}, \sigma_{sed})
+\]
 
-Com sed_ratio sintético, calcula ansiedade alvo onde:
+- classifica lifestyle (ativo, moderado, muito ativo, sedentário) a partir de faixas de sed_ratio.
 
-α = ansiedade base prevista
+#### 5) Gera o STAI alvo sintético
+Com o sed_ratio sintético, calcula o STAI alvo:
 
-β = quanto a ansiedade aumenta com sedentarismo
+\[
+STAI_{alvo} = \alpha + \beta \cdot sed\_ratio^{(sint)} + \varepsilon
+\]
 
-ε = ruído Normal (variabilidade humana realista)
+onde:
+- **α** = ansiedade base esperada  
+- **β** = aumento esperado de ansiedade conforme sedentarismo cresce  
+- **ε** = ruído Normal (variabilidade humana realista, guiada por σ_stai e temperatura)
 
 Depois:
+- arredonda  
+- **trunca em [20, 80]**, respeitando a escala psicométrica real do STAI-S.
 
-arredonda
+#### 6) Monta o prompt final e chama a LLM
+O script **monta internamente**:
+- cenário estressor padronizado  
+- instruções de saída em JSON  
+- os itens do STAI-S (lidos de `prompts.py`)  
+- os atributos da persona (sed_ratio, lifestyle, STAI alvo, temperatura)
 
-trunca em [20, 80], porque essa é a faixa do STAI-S real.
+A LLM deve retornar **apenas JSON** com:
+- `stai_1` … `stai_20`  
+- valores inteiros entre **1 e 4**  
+- sem texto livre.
 
-(6) Prompt para o LLM
+#### 7) Valida e salva incrementalmente
+Cada JSON recebido passa por validação:
+- contém 20 itens  
+- todos entre 1 e 4  
+- formato correto
 
-Para cada persona, o modelo recebe:
+Respostas válidas são salvas imediatamente para:
+- evitar perda em caso de interrupção  
+- manter rastreabilidade completa do experimento.
 
--sed_ratio
--lifestyle
--STAI_alvo
--cenário estressor
--STAI-S completo (do prompts.py)
--instrução de retorno JSON.
+---
 
-(7) Coleta e validação de resposta
+## `saida_sintetico_one_situation/` — Saídas brutas do experimento
 
-O script valida:
+Pasta gerada pelo script principal, contendo:
+- lotes de respostas por temperatura  
+- arquivos JSON/CSV com os 20 itens e STAI total  
+- `mmash_stats.json` com os parâmetros calibrados
 
-tem 20 itens
+É a evidência experimental bruta.
 
-todos de 1 a 4
+---
 
-JSON válido
+## `analise_json/` — Bases tratadas para análise
 
-sem texto extra
+Contém versões organizadas/limpas das saídas, normalmente com:
+- dados concatenados
+- STAI total calculado
+- colunas auxiliares (temperatura, lifestyle, sed_ratio etc.)
 
-Se falhar, reenvia a persona individualmente.
+---
 
-(8) Armazenamento incremental
+## `analise_json_stai_mmash.ipynb` — Notebook de EDA e estatística
 
-Cada persona validada é salva imediatamente:
+Notebook usado para:
+1. carregar os resultados sintéticos  
+2. validar novamente STAI total  
+3. gerar estatísticas descritivas e tabelas  
+4. comparar grupos (contraste principal: ativo vs sedentário)  
+5. produzir tabelas finais usadas nos slides
 
-garante recuperação se cair no meio
+---
 
-garante rastreabilidade total.
+## Como executar
 
-4. saida_sintetico_one_situation/ (Saídas brutas)
+### Requisitos
+- Python 3.9+
+- pandas, numpy, scipy, matplotlib, seaborn
+- biblioteca de chamada ao modelo (já usada no script)
 
-Pasta onde ficam os resultados do script principal.
+### Rodar o pipeline
+Na raiz do repositório:
+python mmash_generate_one_situation_fast.py
 
-Tipicamente contém:
+Isso executa:
 
-arquivos .json ou .csv por temperatura
+- calibração MMASH
+- geração de personas
+- aplicação do cenário + STAI-S via LLM
+- armazenamento das saídas.
 
-lotes de personas por condição
+Rodar a análise
 
-métricas agregadas
+Abra:
+jupyter notebook analise_json_stai_mmash.ipynb
 
-o arquivo mmash_stats.json (parâmetros calibrados)
 
-Essa pasta é a evidência experimental bruta.
+Observações finais
 
-5. analise_json/ (Dados organizados para análise)
+O MMASH é usado somente para calibração empírica.
 
-Pasta com versões já tratadas/limpas das saídas sintéticas.
+O STAI-S aplicado é sempre o instrumento oficial de 20 itens.
 
-Em geral contém:
-
-bases concatenadas
-
-STAI total calculado
-
-colunas auxiliares (temperatura, lifestyle, sed_ratio etc.)
-
-É a entrada direta do notebook de análise.
-
-6. analise_json_stai_mmash.ipynb (Notebook de EDA e estatística)
-
-Notebook responsável por:
-
-Carregar dados sintéticos organizados (analise_json/ ou saida_sintetico_one_situation/).
-
-Recalcular/checar stai_total a partir dos 20 itens.
-
-Fazer EDA (estatística descritiva, distribuição, consistência).
-
-Comparar grupos (ativo vs sedentário como contraste principal).
-
-Gerar tabelas finais usadas nos slides.
-
-Esse notebook é o que produz:
-
-médias por lifestyle e temperatura
-
-contagens (n)
-
-tabelas compactas para apresentação
-
-testes estatísticos (ex.: t-test / Mann-Whitney quando necessário)
+Todo o controle experimental (cenário, prompt da LLM, validação e salvamento) está no script principal.
