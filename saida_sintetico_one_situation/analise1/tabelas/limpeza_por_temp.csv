@@ -1,0 +1,4 @@
+temperature,rows_before,na_rows,out_of_range_rows,dropped
+0.6,3184,0,0,0
+0.75,3000,0,0,0
+0.9,3000,0,0,0

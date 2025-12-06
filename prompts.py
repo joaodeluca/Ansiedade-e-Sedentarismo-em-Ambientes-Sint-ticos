@@ -1,0 +1,22 @@
+STAI_ITEMS = [
+    "1. Sinto-me calmo(a)",
+    "2. Sinto-me seguro(a)",
+    "3. Sinto-me tenso(a)",
+    "4. Sinto-me agitado(a) demais",
+    "5. Sinto-me em paz",
+    "6. Sinto-me perturbado(a)",
+    "7. Estou preocupado(a) demais",
+    "8. Sinto-me satisfeito(a)",
+    "9. Sinto-me assustado(a)",
+    "10. Sinto-me no controle",
+    "11. Estou nervoso(a)",
+    "12. Estou agitado(a)",
+    "13. Sinto-me confortável",
+    "14. Estou confiante",
+    "15. Sinto-me à vontade",
+    "16. Sinto-me apreensivo(a)",
+    "17. Sinto-me relaxado(a)",
+    "18. Sinto-me contente",
+    "19. Estou indeciso(a)",
+    "20. Sinto-me preocupado(a)"
+]
